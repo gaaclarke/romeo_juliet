@@ -10,16 +10,15 @@ import 'package:flutter/services.dart' show rootBundle;
 /// number decoded so far.  There is no need to cache previously decoded
 /// messages since they are stored in the widgets.
 class _DecoderState {
-  _DecoderState(this.decodedMessages, this.stillDecoding);
-  final List<String> decodedMessages;
-  final bool stillDecoding;
+  _DecoderState(this.lastDecodedMessage);
+  final String? lastDecodedMessage;
 }
 
 // This is the agent that is used to seed the fake messages and decrypt them.
 Agent<_DecoderState>? _agent;
 
 Future<Agent<_DecoderState>> _getAgent() async {
-  _agent ??= await Agent.create(_DecoderState(<String>[], true));
+  _agent ??= await Agent.create(_DecoderState(null));
   return _agent!;
 }
 
@@ -68,10 +67,9 @@ Future<void> _loadMessage(Agent<_DecoderState> agent, int index) async {
     File file = File('${documentsPath.path}/$index.rot');
     if (file.existsSync()) {
       String encoded = file.readAsStringSync();
-      state.decodedMessages.add(_rot13Decode(encoded));
-      return _DecoderState(state.decodedMessages, true);
+      return _DecoderState(_rot13Decode(encoded));
     } else {
-      return _DecoderState(state.decodedMessages, false);
+      return _DecoderState(null);
     }
   });
 }
@@ -118,75 +116,45 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class _Message extends StatefulWidget {
-  const _Message(this.alignment, this.index);
+class _Message extends StatelessWidget {
+  const _Message(this.alignment, this.text);
 
   final TextAlign alignment;
-  final int index;
-
-  @override
-  State<StatefulWidget> createState() {
-    return _MessageState();
-  }
-}
-
-Future<String?> _queryMessage(int index) async {
-  Agent<_DecoderState> agent = await _getAgent();
-  return agent.query((state) => state.decodedMessages[index]);
-}
-
-class _MessageState extends State<_Message> {
-  String? _text;
-
-  @override
-  void initState() {
-    super.initState();
-    _getAgent().then((agent) async {
-      _queryMessage(widget.index).then((decoded) {
-        if (mounted) {
-          setState(() {
-            _text = decoded;
-          });
-        }
-      });
-    });
-  }
+  final String text;
 
   @override
   Widget build(BuildContext context) {
-    final EdgeInsets margin = widget.alignment == TextAlign.left
+    final EdgeInsets margin = alignment == TextAlign.left
         ? const EdgeInsets.fromLTRB(10, 10, 30, 30)
         : const EdgeInsets.fromLTRB(30, 10, 10, 30);
-    final String name = widget.alignment == TextAlign.left ? 'Romeo' : 'Juliet';
+    final String name = alignment == TextAlign.left ? 'Romeo' : 'Juliet';
     final Color color =
-        widget.alignment == TextAlign.left ? Colors.lightBlue : Colors.grey;
-    return _text == null
-        ? Container()
-        : Column(children: [
-            SizedBox(
-                width: double.infinity,
-                height: 20,
-                child: Text(
-                  name,
-                  style: _textStyle,
-                  textAlign: widget.alignment,
-                )),
-            SizedBox(
-              width: double.infinity,
-              child: Container(
-                decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: const BorderRadius.all(Radius.circular(20))),
-                margin: margin,
-                padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
-                child: Text(
-                  _text!,
-                  textAlign: TextAlign.left,
-                  style: _textStyle,
-                ),
-              ),
-            )
-          ]);
+        alignment == TextAlign.left ? Colors.lightBlue : Colors.grey;
+    return Column(children: [
+      SizedBox(
+          width: double.infinity,
+          height: 20,
+          child: Text(
+            name,
+            style: _textStyle,
+            textAlign: alignment,
+          )),
+      SizedBox(
+        width: double.infinity,
+        child: Container(
+          decoration: BoxDecoration(
+              color: color,
+              borderRadius: const BorderRadius.all(Radius.circular(20))),
+          margin: margin,
+          padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+          child: Text(
+            text!,
+            textAlign: TextAlign.left,
+            style: _textStyle,
+          ),
+        ),
+      )
+    ]);
   }
 }
 
@@ -205,18 +173,25 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   int _count = 0;
+  // We cache the decoded messages on the ui thread since the scroll view's
+  // offset will jump to the top if it doesn't synchronously know the size of a
+  // widget.
+  final List<String> _decodedMessages = [];
 
   Future<void> startCounting() async {
     bool keepLoading = true;
     while (keepLoading) {
       final Agent<_DecoderState> agent = await _getAgent();
       await _loadMessage(agent, _count);
-      final int count =
-          await agent.query((state) => state.decodedMessages.length);
-      setState(() {
-        _count = count;
-      });
-      keepLoading = await agent.query((state) => state.stillDecoding);
+      String? decodedMessage = await agent.query((state) => state.lastDecodedMessage);
+      if (decodedMessage != null) {
+        _decodedMessages.add(decodedMessage);
+        setState(() {
+          _count = _decodedMessages.length;
+        });
+      } else {
+        keepLoading = false;
+      }
       await Future.delayed(const Duration(milliseconds: 1000));
     }
   }
@@ -238,9 +213,9 @@ class _MyHomePageState extends State<MyHomePage> {
           itemCount: _count,
           itemBuilder: ((context, index) {
             if (index % 2 == 0) {
-              return _Message(TextAlign.left, index);
+              return _Message(TextAlign.left, _decodedMessages[index]);
             } else {
-              return _Message(TextAlign.right, index);
+              return _Message(TextAlign.right, _decodedMessages[index]);
             }
           })),
     );
