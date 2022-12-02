@@ -10,6 +10,7 @@ import 'package:flutter/services.dart' show rootBundle;
 /// documents directory so it doesn't have to be queried each time.
 class _DecoderState {
   _DecoderState(this.documentsDir, this.lastDecodedMessage);
+
   /// The directory the messages are read from.  Storing this on the isolate is
   /// an optimization that can't be acheived with the `compute` function.
   final Directory? documentsDir;
@@ -18,15 +19,9 @@ class _DecoderState {
   final String? lastDecodedMessage;
 }
 
-/// This is the agent that will be used to decrypt messages as we receive the
-/// request to do so.
-Future<Agent<_DecoderState>>? _agentFuture;
-
 /// Getter for the singleton [Agent] for decoding.
-Future<Agent<_DecoderState>> get _agent async {
-  _agentFuture ??= Agent.create(_DecoderState(null, null));
-  return _agentFuture!;
-}
+final Future<Agent<_DecoderState>> _agent =
+    Agent.create(_DecoderState(null, null));
 
 /// A simple encoding method, rot13.
 String _rot13Encode(String input) {
