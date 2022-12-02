@@ -20,11 +20,11 @@ class _DecoderState {
 
 /// This is the agent that will be used to decrypt messages as we receive the
 /// request to do so.
-Agent<_DecoderState>? _agent;
+Future<Agent<_DecoderState>>? _agent;
 
 /// Getter for the singleton [Agent] for decoding.
 Future<Agent<_DecoderState>> _getAgent() async {
-  _agent ??= await Agent.create(_DecoderState(null, null));
+  _agent ??= Agent.create(_DecoderState(null, null));
   return _agent!;
 }
 
