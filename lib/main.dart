@@ -20,12 +20,12 @@ class _DecoderState {
 
 /// This is the agent that will be used to decrypt messages as we receive the
 /// request to do so.
-Future<Agent<_DecoderState>>? _agent;
+Future<Agent<_DecoderState>>? _agentFuture;
 
 /// Getter for the singleton [Agent] for decoding.
-Future<Agent<_DecoderState>> _getAgent() async {
-  _agent ??= Agent.create(_DecoderState(null, null));
-  return _agent!;
+Future<Agent<_DecoderState>> get _agent async {
+  _agentFuture ??= Agent.create(_DecoderState(null, null));
+  return _agentFuture!;
 }
 
 /// A simple encoding method, rot13.
@@ -88,7 +88,7 @@ void _loadMessage(Agent<_DecoderState> agent, int index) {
 Future<void> _encodeMessages() async {
   Directory documentsPath =
       await path_provider.getApplicationDocumentsDirectory();
-  Agent<_DecoderState> agent = await _getAgent();
+  Agent<_DecoderState> agent = await _agent;
   String text = await rootBundle.loadString('assets/romeojuliet.txt');
   agent.send((state) {
     List<String> lines = text.split('\n\n');
@@ -197,7 +197,7 @@ class _MyHomePageState extends State<MyHomePage> {
   /// This sets the [Agent]'s documents directory then will asynchronously fire
   /// new messages loading jobs every second.
   Future<void> startLoadingMessages() async {
-    final Agent<_DecoderState> agent = await _getAgent();
+    final Agent<_DecoderState> agent = await _agent;
 
     // Store the documents directory on the agent so it doesn't have to be
     // queried every time.
