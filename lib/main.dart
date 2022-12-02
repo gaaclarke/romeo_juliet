@@ -10,9 +10,11 @@ import 'package:flutter/services.dart' show rootBundle;
 /// documents directory so it doesn't have to be queried each time.
 class _DecoderState {
   _DecoderState(this.documentsDir, this.lastDecodedMessage);
+  /// The directory the messages are read from.  Storing this on the isolate is
+  /// an optimization that can't be acheived with the `compute` function.
   final Directory? documentsDir;
 
-  /// A null value means we've reached the end of the messages.
+  /// A `null` value means we've reached the end of the messages.
   final String? lastDecodedMessage;
 }
 
@@ -66,7 +68,9 @@ String _rot13Decode(String input) {
   return const AsciiDecoder().convert(output);
 }
 
-Future<void> _loadMessage(Agent<_DecoderState> agent, int index) async {
+/// Queues up a job in the [agent] to read and decode one of the messages from
+/// disk at [index].
+void _loadMessage(Agent<_DecoderState> agent, int index) {
   agent.send((state) {
     File file = File('${state.documentsDir!.path}/$index.rot');
     if (file.existsSync()) {
@@ -120,6 +124,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
+/// Widget that represents the author and a message.
 class _Message extends StatelessWidget {
   const _Message(this.alignment, this.text);
 
@@ -128,6 +133,8 @@ class _Message extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const TextStyle textStyle = TextStyle(fontSize: 16);
+
     final EdgeInsets margin = alignment == TextAlign.left
         ? const EdgeInsets.fromLTRB(10, 10, 30, 30)
         : const EdgeInsets.fromLTRB(30, 10, 10, 30);
@@ -140,7 +147,7 @@ class _Message extends StatelessWidget {
           height: 20,
           child: Text(
             name,
-            style: _textStyle,
+            style: textStyle,
             textAlign: alignment,
           )),
       SizedBox(
@@ -154,15 +161,13 @@ class _Message extends StatelessWidget {
           child: Text(
             text!,
             textAlign: TextAlign.left,
-            style: _textStyle,
+            style: textStyle,
           ),
         ),
       )
     ]);
   }
 }
-
-const TextStyle _textStyle = TextStyle(fontSize: 16);
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
@@ -175,6 +180,7 @@ class MyHomePage extends StatefulWidget {
   }
 }
 
+/// Stores [documentsDir] onto the [agent].
 Future<void> _setDocumentsDir(
     Agent<_DecoderState> agent, Directory documentsDir) {
   return agent
@@ -182,7 +188,7 @@ Future<void> _setDocumentsDir(
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _count = 0;
+  int _messageCount = 0;
   // We cache the decoded messages on the root isolate since the scroll view's
   // offset will jump to the top if it doesn't synchronously know the size of a
   // widget.
@@ -201,13 +207,13 @@ class _MyHomePageState extends State<MyHomePage> {
 
     bool keepLoading = true;
     while (keepLoading) {
-      await _loadMessage(agent, _count);
+      _loadMessage(agent, _messageCount);
       String? decodedMessage =
           await agent.query((state) => state.lastDecodedMessage);
       if (decodedMessage != null) {
         _decodedMessages.add(decodedMessage);
         setState(() {
-          _count = _decodedMessages.length;
+          _messageCount = _decodedMessages.length;
         });
       } else {
         keepLoading = false;
@@ -230,7 +236,7 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
       body: ListView.builder(
           padding: const EdgeInsets.fromLTRB(0, 25, 0, 25),
-          itemCount: _count,
+          itemCount: _messageCount,
           itemBuilder: ((context, index) {
             if (index % 2 == 0) {
               return _Message(TextAlign.left, _decodedMessages[index]);
