@@ -21,7 +21,7 @@ class _DecoderState {
 
 /// Getter for the singleton [Agent] for decoding.
 final Future<Agent<_DecoderState>> _agent =
-    Agent.create(_DecoderState(null, null));
+    Agent.create(() => _DecoderState(null, null));
 
 /// A simple encoding method, rot13.
 String _rot13Encode(String input) {
@@ -66,7 +66,7 @@ String _rot13Decode(String input) {
 /// Queues up a job in the [agent] to read and decode one of the messages from
 /// disk at [index].
 void _loadMessage(Agent<_DecoderState> agent, int index) {
-  agent.send((state) {
+  agent.update((state) {
     File file = File('${state.documentsDir!.path}/$index.rot');
     if (file.existsSync()) {
       String encoded = file.readAsStringSync();
@@ -85,7 +85,7 @@ Future<void> _encodeMessages() async {
       await path_provider.getApplicationDocumentsDirectory();
   Agent<_DecoderState> agent = await _agent;
   String text = await rootBundle.loadString('assets/romeojuliet.txt');
-  agent.send((state) {
+  agent.update((state) {
     List<String> lines = text.split('\n\n');
     int i = 0;
     for (String line in lines) {
@@ -179,7 +179,7 @@ class MyHomePage extends StatefulWidget {
 Future<void> _setDocumentsDir(
     Agent<_DecoderState> agent, Directory documentsDir) {
   return agent
-      .send((state) => _DecoderState(documentsDir, state.lastDecodedMessage));
+      .update((state) => _DecoderState(documentsDir, state.lastDecodedMessage));
 }
 
 class _MyHomePageState extends State<MyHomePage> {
@@ -204,7 +204,7 @@ class _MyHomePageState extends State<MyHomePage> {
     while (keepLoading) {
       _loadMessage(agent, _messageCount);
       String? decodedMessage =
-          await agent.query((state) => state.lastDecodedMessage);
+          await agent.read(query: (state) => state.lastDecodedMessage);
       if (decodedMessage != null) {
         _decodedMessages.add(decodedMessage);
         setState(() {
