@@ -6,8 +6,9 @@ the ui thread in Flutter.
 
 ## Getting Started
 
-Execute the example with `flutter run`, all platforms are supported except web
-since it lacks isolates.
+Generate the platform files by running `flutter create .` then execute the
+example with `flutter run`.  All platforms are supported except web since it
+lacks isolates.
 
 ## Explanation
 
